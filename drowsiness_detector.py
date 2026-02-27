@@ -9,9 +9,11 @@ face_mesh = mp_face_mesh.FaceMesh(refine_landmarks=True)
 
 cap = cv2.VideoCapture(0)
 
-# Eye landmark indices (MediaPipe)
+# Eye landmark indices (MediaPipe Face Mesh)
 LEFT_EYE = [33, 160, 158, 133, 153, 144]
 RIGHT_EYE = [362, 385, 387, 263, 373, 380]
+
+MOUTH = [13, 14, 78, 308, 82, 87, 312, 317]
 
 def eye_aspect_ratio(eye_points, landmarks, frame_width, frame_height):
     points = []
@@ -29,6 +31,29 @@ def eye_aspect_ratio(eye_points, landmarks, frame_width, frame_height):
 
     ear = (v1 + v2) / (2.0 * h)
     return ear
+
+def mouth_aspect_ratio(landmarks, frame_width, frame_height):
+    # Top and bottom lip
+    top = landmarks[13]
+    bottom = landmarks[14]
+
+    # Left and right mouth corners
+    left = landmarks[78]
+    right = landmarks[308]
+
+    top = (int(top.x * frame_width), int(top.y * frame_height))
+    bottom = (int(bottom.x * frame_width), int(bottom.y * frame_height))
+    left = (int(left.x * frame_width), int(left.y * frame_height))
+    right = (int(right.x * frame_width), int(right.y * frame_height))
+
+    vertical = hypot(top[0] - bottom[0], top[1] - bottom[1])
+    horizontal = hypot(left[0] - right[0], left[1] - right[1])
+
+    mar = vertical / horizontal
+    return mar
+MAR_THRESHOLD = 0.6
+YAWN_FRAMES = 15
+yawn_counter = 0
 
 frame_counter = 0
 EAR_THRESHOLD = 0.23
@@ -54,6 +79,18 @@ while True:
             right_ear = eye_aspect_ratio(RIGHT_EYE, landmarks, frame_width, frame_height)
 
             avg_ear = (left_ear + right_ear) / 2.0
+            mar = mouth_aspect_ratio(landmarks, frame_width, frame_height)
+
+            if mar > MAR_THRESHOLD:
+                yawn_counter += 1
+            else:
+                yawn_counter = 0
+
+            if yawn_counter > YAWN_FRAMES:
+                cv2.putText(frame, "YAWNING ALERT !!!", (50, 150),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 0, 0), 3)
+
+                os.system("afplay /System/Library/Sounds/Sosumi.aiff")
 
             if avg_ear < EAR_THRESHOLD:
                 frame_counter += 1
